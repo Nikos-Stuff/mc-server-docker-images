@@ -1,5 +1,3 @@
-ARG BASE_IMAGE=ghcr.io/pterodactyl/yolks:java_21
-
 FROM alpine:latest AS download
 
 RUN apk add --no-cache bash curl jq ca-certificates
@@ -10,20 +8,16 @@ RUN chmod +x /usr/local/bin/download-paper.sh \
     && mkdir -p /paper \
     && download-paper.sh "${MC_VERSION}" /paper/server.jar
 
-FROM alpine:latest
+FROM ghcr.io/pelican-eggs/yolks:alpine
 
 ARG MC_VERSION
 ARG JAVA_PACKAGE=openjdk21-jre-headless
 
+USER root
+
 ENV MC_VERSION=${MC_VERSION}
 
-RUN apk add --no-cache \
-  "${JAVA_PACKAGE}" \
-  ca-certificates \
-  tzdata
-
-RUN addgroup -g 1000 container \
-  && adduser -D -u 1000 -G container -h /home/container -s /bin/sh container
+RUN apk add --no-cache "${JAVA_PACKAGE}"
 
 # NOTE: the jar is stored at /opt/paper/server.jar NOT /home/container
 # each server's data directory is being mounted over /home/container
