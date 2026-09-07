@@ -1,0 +1,14 @@
+{
+  "versions": [
+    {
+      "minecraft": "1.8.8",
+      "java_package": "openjdk8-jre-base",
+      "tag": "1.8.8"
+    },
+    {
+      "minecraft": "26.2",
+      "java_package": "openjdk25-jre-headless",
+      "tag": "26.2"
+    }
+  ]
+}
