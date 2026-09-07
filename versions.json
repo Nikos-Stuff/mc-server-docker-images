@@ -6,6 +6,31 @@
       "tag": "26.2"
     },
     {
+      "minecraft": "26.1.2",
+      "java_package": "openjdk25-jre-headless",
+      "tag": "26.1.2"
+    },
+    {
+      "minecraft": "1.21.11",
+      "java_package": "openjdk21-jre-headless",
+      "tag": "1.21.11"
+    },
+    {
+      "minecraft": "1.16.5",
+      "java_package": "openjdk17-jre-headless",
+      "tag": "1.16.5"
+    },
+    {
+      "minecraft": "1.12.2",
+      "java_package": "openjdk8-jre-base",
+      "tag": "1.12.2"
+    },
+    {
+      "minecraft": "1.9.4",
+      "java_package": "openjdk8-jre-base",
+      "tag": "1.9.4"
+    },
+    {
       "minecraft": "1.8.8",
       "java_package": "openjdk8-jre-base",
       "tag": "1.8.8"
