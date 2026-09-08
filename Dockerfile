@@ -3,10 +3,10 @@ FROM alpine:latest AS download
 RUN apk add --no-cache bash curl jq ca-certificates
 
 ARG MC_VERSION
-COPY scripts/download-paper.sh /usr/local/bin/download-paper.sh
-RUN chmod +x /usr/local/bin/download-paper.sh \
+COPY scripts/mcjars.sh /usr/local/bin/mcjars.sh
+RUN chmod +x /usr/local/bin/mcjars.sh \
     && mkdir -p /paper \
-    && download-paper.sh "${MC_VERSION}" /paper/server.jar
+    && mcjars.sh paper "${MC_VERSION}" /paper/server.jar
 
 FROM ghcr.io/pelican-eggs/yolks:alpine
 
