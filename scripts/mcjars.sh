@@ -7,7 +7,7 @@ OUTPUT=${3:?Usage: $0 <server-type> <minecraft-version> <output>}
 API="https://mcjars.app/api/v3"
 OUT_DIR="$(dirname "${OUTPUT}")"
 
-SERVER_TYPE="${SERVER_TYPE^^}"
+SERVER_TYPE=$(echo "$SERVER_TYPE" | tr '[:lower:]' '[:upper:]')
 
 URL="${API}/builds/types/${SERVER_TYPE}/versions/${MC_VERSION}/latest"
 
@@ -17,41 +17,41 @@ RESPONSE="$(curl -fsSL "${URL}")" || {
   exit 1
 }
 
-BUILD="$(jq -c '.build // empty' <<<"${RESPONSE}")"
+BUILD="$(echo "${RESPONSE}" | jq -c '.build // empty')"
 
-if [[ -z "${BUILD}" ]]; then
+if [ -z "${BUILD}" ]; then
   echo "No build found for ${SERVER_TYPE} ${MC_VERSION}" >&2
   exit 1
 fi
 
-EXPERIMENTAL="$(jq -r '.experimental // false' <<<"${BUILD}")"
+EXPERIMENTAL="$(echo "${BUILD}" | jq -r '.experimental // false')"
 
-if [[ "${EXPERIMENTAL}" == "true" ]]; then
+if [ "${EXPERIMENTAL}" == "true" ]; then
     echo "Latest ${SERVER_TYPE} build for Minecraft ${MC_VERSION} is experimental" >&2
     exit 1
 fi
 
-UUID="$(jq -r '.uuid // empty' <<<"${BUILD}")"
+UUID="$(echo "${BUILD}" | jq -r '.uuid // empty')"
 
 echo "Using build ${UUID}"
 
 DOWNLOAD="$(
-    jq -c '
+    echo "${BUILD}" | jq -c '
         [
           .installation[][]
           | select(.type? == "download")
         ]
         | first
-    ' <<<"${BUILD}"
+    '
 )"
 
-if [[ -z "${DOWNLOAD}" || "${DOWNLOAD}" == "null" ]]; then
+if [ -z "${DOWNLOAD}" ] || [ "${DOWNLOAD}" == "null" ]; then
   echo "Couldn't find a server JAR download for build ${UUID}" >&2
   exit 1
 fi
 
-DOWNLOAD_URL="$(jq -r '.url // empty' <<<"${DOWNLOAD}")"
-FILENAME="$(jq -r '.file // empty' <<<"${DOWNLOAD}")"
+DOWNLOAD_URL="$(echo "${DOWNLOAD}" | jq -r '.url // empty')"
+FILENAME="$(echo "${DOWNLOAD}" | jq -r '.file // empty')"
 
 mkdir -p ${OUT_DIR}
 
