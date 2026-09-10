@@ -10,6 +10,10 @@ on:
       - .github/workflows/build-images.yaml
   workflow_dispatch:
     inputs:
+      engines:
+        description: "Comma separated engines to (re)build, e.g 'paper,purpur'. Empty = all"
+        required: false
+        default: ""
       versions:
         description: "Comma separated Minecraft versions to (re)build. If empty (re)build every version in versions.json"
         required: false
@@ -31,16 +35,29 @@ jobs:
       - name: Build matrix from versions.json
         id: build-matrix
         run: |
-          set -euo pipefail
-          FILTER='${{ github.event.inputs.versions }}'
-          if [ -n "$FILTER" ]; then
-            WANT=$(echo "$FILTER" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";""))')
-            IMAGES=$(jq -c --argjson want "$WANT" '[.versions[] | select(.minecraft as $m | $want | index($m))]' versions.json)
-          else
-            IMAGES=$(jq -c '.versions' versions.json)
-          fi
+            set -euo pipefail
+            ALL='[]'
+            for FILE in versions/*.json; do
+              ENGINE="$(basename "$FILE" .json)"
+              PART="$(jq -c --arg engine "$ENGINE" '[.versions[] | . + {engine: $engine}]' "$FILE")"
+              ALL="$(jq -c -n --argjson a "$ALL" --argjson b "$PART" '$a + $b')"
+            done
 
-          echo "images=${IMAGES}" >> "$GITHUB_OUTPUT"
+            ENGINE_FILTER='${{ github.event.inputs.engines }}'
+            VERSION_FILTER='${{ github.event.inputs.versions }}'
+
+            if [ -n "$ENGINE_FILTER" ]; then
+              WANT_ENGINES="$(echo "$ENGINE_FILTER" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";""))')"
+              ALL="$(jq -c --argjson want "$WANT_ENGINES" '[.[] | select(.engine as $e | $want | index($e))]' <<< "$ALL")"
+            fi
+
+            if [ -n "$VERSION_FILTER" ]; then
+              WANT_VERSIONS="$(echo "$VERSION_FILTER" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";""))')"
+              ALL="$(jq -c --argjson want "$WANT_VERSIONS" '[.[] | select(.minecraft as $m | $want | index($m))]' <<< "$ALL")"
+            fi
+
+            echo "images=${ALL}" >> "$GITHUB_OUTPUT"
+
 
   build:
     needs: matrix
@@ -84,4 +101,4 @@ jobs:
               MC_VERSION=${{ matrix.image.minecraft }}
               JAVA_PACKAGE=${{ matrix.image.java_package }}
           tags: |
-              ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:${{ matrix.image.tag }}
+              ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/${{ matrix.image.engine }}:${{ matrix.image.tag }}

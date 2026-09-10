@@ -13,9 +13,9 @@ FROM ghcr.io/pelican-eggs/yolks:alpine
 ARG MC_VERSION
 ARG JAVA_PACKAGE=openjdk21-jre-headless
 
-USER root
-
 ENV MC_VERSION=${MC_VERSION}
+
+USER root
 
 RUN apk add --no-cache "${JAVA_PACKAGE}"
 
