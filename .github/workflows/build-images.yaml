@@ -6,7 +6,8 @@ on:
       - main
     paths:
       - versions.json
-      - Dockerfile
+      - docker/**
+      - scripts/**
       - .github/workflows/build-images.yaml
   workflow_dispatch:
     inputs:
