@@ -18,7 +18,7 @@
     {
       "minecraft": "1.21.4",
       "java_package": "openjdk21-jre-headless",
-      "tag": "1.21.11"
+      "tag": "1.21.4"
     },
     {
       "minecraft": "1.20.1",
