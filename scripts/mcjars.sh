@@ -28,7 +28,6 @@ EXPERIMENTAL="$(echo "${BUILD}" | jq -r '.experimental // false')"
 
 if [ "${EXPERIMENTAL}" == "true" ]; then
     echo "Latest ${SERVER_TYPE} build for Minecraft ${MC_VERSION} is experimental" >&2
-    exit 1
 fi
 
 UUID="$(echo "${BUILD}" | jq -r '.uuid // empty')"
