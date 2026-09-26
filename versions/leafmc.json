@@ -1,0 +1,19 @@
+{
+  "versions": [
+    {
+      "minecraft": "26.2",
+      "java_package": "openjdk25-jre-headless",
+      "tag": "26.2"
+    },
+    {
+      "minecraft": "26.1.2",
+      "java_package": "openjdk25-jre-headless",
+      "tag": "26.1.2"
+    },
+    {
+      "minecraft": "1.21.11",
+      "java_package": "openjdk21-jre-headless",
+      "tag": "1.21.11"
+    }
+  ]
+}
