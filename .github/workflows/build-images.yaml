@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - versions.json
+      - versions/**
       - docker/**
       - scripts/**
       - .github/workflows/build-images.yaml
