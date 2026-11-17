@@ -19,16 +19,24 @@ on:
         description: "Comma separated Minecraft versions to (re)build. If empty (re)build every version in versions.json"
         required: false
         default: ""
+  schedule:
+    - cron: "0 0 * * *"
 
 env:
   REGISTRY: ghcr.io
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   matrix:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     outputs:
-      images: ${{ steps.build-matrix.outputs.images }}
+      images: ${{ steps.changed-matrix.outputs.images || steps.versions-with-builds.outputs.images }}
 
     steps:
       - uses: actions/checkout@v7
@@ -58,6 +66,68 @@ jobs:
             fi
 
             echo "images=${ALL}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve latest jar builds
+        id: versions-with-builds
+        env:
+          IMAGES: ${{ steps.build-matrix.outputs.images }}
+        run: |
+            set -uo pipefail
+            RESULT='[]'
+            while IFS= read -r IMAGE; do
+              ENGINE="$(jq -r '.engine' <<< "${IMAGE}")"
+              MC_VERSION="$(jq -r '.minecraft' <<< "${IMAGE}")"
+              # Quick and dirty
+              case "${ENGINE}" in
+                paper) TYPE=PAPER ;;
+                purpur) TYPE=PURPUR ;;
+                fabric) TYPE=FABRIC ;;
+                leafmc) TYPE=LEAF ;;
+                *)
+                  echo "No mcjars type mapping for engine ${ENGINE}; skipping" >&2
+                  continue
+                  ;;
+              esac
+              URL="https://mcjars.app/api/v3/builds/types/${TYPE}/versions/${MC_VERSION}/latest"
+              UUID="$(curl -fsSL "${URL}" 2>/dev/null | jq -r '.build.uuid // empty')" || UUID=""
+              if [ -z "${UUID}" ]; then
+                echo "Couldn't resolve latest build for ${ENGINE} ${MC_VERSION}; skipping" >&2
+                continue
+              fi
+              RESULT="$(jq -c --argjson image "${IMAGE}" --arg uuid "${UUID}" '. + [($image + {build_uuid: $uuid})]' <<< "${RESULT}")"
+            done < <(jq -c '.[]' <<< "${IMAGES}")
+            {
+              echo "images<<EOF"
+              echo "${RESULT}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+
+      - name: Keep only images with a new jar build
+        id: changed-matrix
+        if: github.event_name == 'schedule'
+        env:
+          IMAGES: ${{ steps.versions-with-builds.outputs.images }}
+        run: |
+            set -uo pipefail
+            STATE='{}'
+            if [ -f builds.json ]; then
+              STATE="$(jq -c '.' builds.json)"
+            fi
+            RESULT='[]'
+            while IFS= read -r IMAGE; do
+              ENGINE="$(jq -r '.engine' <<< "${IMAGE}")"
+              TAG="$(jq -r '.tag' <<< "${IMAGE}")"
+              UUID="$(jq -r '.build_uuid' <<< "${IMAGE}")"
+              CURRENT="$(jq -r --arg key "${ENGINE}:${TAG}" '.[$key] // empty' <<< "${STATE}")"
+              if [ "${CURRENT}" != "${UUID}" ]; then
+                RESULT="$(jq -c --argjson image "${IMAGE}" '. + [$image]' <<< "${RESULT}")"
+              fi
+            done < <(jq -c '.[]' <<< "${IMAGES}")
+            {
+              echo "images<<EOF"
+              echo "${RESULT}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
 
 
   build:
@@ -103,3 +173,34 @@ jobs:
               JAVA_PACKAGE=${{ matrix.image.java_package }}
           tags: |
               ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/${{ matrix.image.engine }}:${{ matrix.image.tag }}
+
+  state:
+    needs: [matrix, build]
+    if: needs.matrix.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Record published jar builds
+        env:
+          IMAGES: ${{ needs.matrix.outputs.images }}
+        run: |
+            set -euo pipefail
+            STATE='{}'
+            if [ -f builds.json ]; then
+              STATE="$(jq -c '.' builds.json)"
+            fi
+            while IFS= read -r IMAGE; do
+              ENGINE="$(jq -r '.engine' <<< "${IMAGE}")"
+              TAG="$(jq -r '.tag' <<< "${IMAGE}")"
+              UUID="$(jq -r '.build_uuid' <<< "${IMAGE}")"
+              STATE="$(jq -c --arg key "${ENGINE}:${TAG}" --arg uuid "${UUID}" '. + {($key): $uuid}' <<< "${STATE}")"
+            done < <(jq -c '.[]' <<< "${IMAGES}")
+            jq -S . <<< "${STATE}" > builds.json
+
+      - uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: record published jar builds"
+          file_pattern: builds.json
