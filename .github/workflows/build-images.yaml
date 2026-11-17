@@ -179,12 +179,10 @@ jobs:
     needs: [matrix, build]
     if: needs.matrix.outputs.images != '[]'
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     steps:
       - name: Record published jar builds
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           IMAGES: ${{ needs.matrix.outputs.images }}
           STATE: ${{ vars.JAR_BUILD_STATE }}
         run: |
