@@ -107,18 +107,19 @@ jobs:
         if: github.event_name == 'schedule'
         env:
           IMAGES: ${{ steps.versions-with-builds.outputs.images }}
+          STATE: ${{ vars.JAR_BUILD_STATE }}
         run: |
             set -uo pipefail
-            STATE='{}'
-            if [ -f builds.json ]; then
-              STATE="$(jq -c '.' builds.json)"
+            CURRENT_STATE='{}'
+            if [ -n "${STATE:-}" ]; then
+              CURRENT_STATE="$(jq -c '.' <<< "${STATE}")"
             fi
             RESULT='[]'
             while IFS= read -r IMAGE; do
               ENGINE="$(jq -r '.engine' <<< "${IMAGE}")"
               TAG="$(jq -r '.tag' <<< "${IMAGE}")"
               UUID="$(jq -r '.build_uuid' <<< "${IMAGE}")"
-              CURRENT="$(jq -r --arg key "${ENGINE}:${TAG}" '.[$key] // empty' <<< "${STATE}")"
+              CURRENT="$(jq -r --arg key "${ENGINE}:${TAG}" '.[$key] // empty' <<< "${CURRENT_STATE}")"
               if [ "${CURRENT}" != "${UUID}" ]; then
                 RESULT="$(jq -c --argjson image "${IMAGE}" '. + [$image]' <<< "${RESULT}")"
               fi
@@ -179,28 +180,23 @@ jobs:
     if: needs.matrix.outputs.images != '[]'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      actions: write
     steps:
-      - uses: actions/checkout@v7
-
       - name: Record published jar builds
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGES: ${{ needs.matrix.outputs.images }}
+          STATE: ${{ vars.JAR_BUILD_STATE }}
         run: |
             set -euo pipefail
-            STATE='{}'
-            if [ -f builds.json ]; then
-              STATE="$(jq -c '.' builds.json)"
+            CURRENT_STATE='{}'
+            if [ -n "${STATE:-}" ]; then
+              CURRENT_STATE="$(jq -c '.' <<< "${STATE}")"
             fi
             while IFS= read -r IMAGE; do
               ENGINE="$(jq -r '.engine' <<< "${IMAGE}")"
               TAG="$(jq -r '.tag' <<< "${IMAGE}")"
               UUID="$(jq -r '.build_uuid' <<< "${IMAGE}")"
-              STATE="$(jq -c --arg key "${ENGINE}:${TAG}" --arg uuid "${UUID}" '. + {($key): $uuid}' <<< "${STATE}")"
+              CURRENT_STATE="$(jq -c --arg key "${ENGINE}:${TAG}" --arg uuid "${UUID}" '. + {($key): $uuid}' <<< "${CURRENT_STATE}")"
             done < <(jq -c '.[]' <<< "${IMAGES}")
-            jq -S . <<< "${STATE}" > builds.json
-
-      - uses: stefanzweifel/git-auto-commit-action@v7
-        with:
-          commit_message: "chore: record published jar builds"
-          file_pattern: builds.json
+            gh variable set JAR_BUILD_STATE --body "$(jq -c . <<< "${CURRENT_STATE}")"
