@@ -199,4 +199,4 @@ jobs:
               UUID="$(jq -r '.build_uuid' <<< "${IMAGE}")"
               CURRENT_STATE="$(jq -c --arg key "${ENGINE}:${TAG}" --arg uuid "${UUID}" '. + {($key): $uuid}' <<< "${CURRENT_STATE}")"
             done < <(jq -c '.[]' <<< "${IMAGES}")
-            gh variable set JAR_BUILD_STATE --body "$(jq -c . <<< "${CURRENT_STATE}")"
+            gh variable set JAR_BUILD_STATE --repo "${GITHUB_REPOSITORY}" --body "$(jq -c . <<< "${CURRENT_STATE}")"
