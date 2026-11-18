@@ -39,7 +39,7 @@ jobs:
       images: ${{ steps.changed-matrix.outputs.images || steps.versions-with-builds.outputs.images }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Build matrix from versions.json
         id: build-matrix
@@ -143,7 +143,7 @@ jobs:
       matrix:
         image: ${{ fromJson(needs.matrix.outputs.images) }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Lowercase repository name
         id: repo
