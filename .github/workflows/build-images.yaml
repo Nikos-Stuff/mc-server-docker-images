@@ -8,6 +8,7 @@ on:
       - versions/**
       - docker/**
       - scripts/**
+      - python/**
       - .github/workflows/build-images.yaml
   workflow_dispatch:
     inputs:
@@ -41,66 +42,23 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
       - name: Build matrix from versions.json
         id: build-matrix
-        run: |
-            set -euo pipefail
-            ALL='[]'
-            for FILE in versions/*.json; do
-              ENGINE="$(basename "$FILE" .json)"
-              PART="$(jq -c --arg engine "$ENGINE" '[.versions[] | . + {engine: $engine}]' "$FILE")"
-              ALL="$(jq -c -n --argjson a "$ALL" --argjson b "$PART" '$a + $b')"
-            done
-
-            ENGINE_FILTER='${{ github.event.inputs.engines }}'
-            VERSION_FILTER='${{ github.event.inputs.versions }}'
-
-            if [ -n "$ENGINE_FILTER" ]; then
-              WANT_ENGINES="$(echo "$ENGINE_FILTER" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";""))')"
-              ALL="$(jq -c --argjson want "$WANT_ENGINES" '[.[] | select(.engine as $e | $want | index($e))]' <<< "$ALL")"
-            fi
-
-            if [ -n "$VERSION_FILTER" ]; then
-              WANT_VERSIONS="$(echo "$VERSION_FILTER" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";""))')"
-              ALL="$(jq -c --argjson want "$WANT_VERSIONS" '[.[] | select(.minecraft as $m | $want | index($m))]' <<< "$ALL")"
-            fi
-
-            echo "images=${ALL}" >> "$GITHUB_OUTPUT"
+        env:
+          ENGINES: ${{ github.event.inputs.engines }}
+          VERSIONS: ${{ github.event.inputs.versions }}
+        run: python3 python/build_matrix.py
 
       - name: Resolve latest jar builds
         id: versions-with-builds
         env:
           IMAGES: ${{ steps.build-matrix.outputs.images }}
-        run: |
-            set -uo pipefail
-            RESULT='[]'
-            while IFS= read -r IMAGE; do
-              ENGINE="$(jq -r '.engine' <<< "${IMAGE}")"
-              MC_VERSION="$(jq -r '.minecraft' <<< "${IMAGE}")"
-              # Quick and dirty
-              case "${ENGINE}" in
-                paper) TYPE=PAPER ;;
-                purpur) TYPE=PURPUR ;;
-                fabric) TYPE=FABRIC ;;
-                leafmc) TYPE=LEAF ;;
-                *)
-                  echo "No mcjars type mapping for engine ${ENGINE}; skipping" >&2
-                  continue
-                  ;;
-              esac
-              URL="https://mcjars.app/api/v3/builds/types/${TYPE}/versions/${MC_VERSION}/latest"
-              UUID="$(curl -fsSL "${URL}" 2>/dev/null | jq -r '.build.uuid // empty')" || UUID=""
-              if [ -z "${UUID}" ]; then
-                echo "Couldn't resolve latest build for ${ENGINE} ${MC_VERSION}; skipping" >&2
-                continue
-              fi
-              RESULT="$(jq -c --argjson image "${IMAGE}" --arg uuid "${UUID}" '. + [($image + {build_uuid: $uuid})]' <<< "${RESULT}")"
-            done < <(jq -c '.[]' <<< "${IMAGES}")
-            {
-              echo "images<<EOF"
-              echo "${RESULT}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+        run: python3 python/resolve_builds.py
 
       - name: Keep only images with a new jar build
         id: changed-matrix
@@ -108,27 +66,7 @@ jobs:
         env:
           IMAGES: ${{ steps.versions-with-builds.outputs.images }}
           STATE: ${{ vars.JAR_BUILD_STATE }}
-        run: |
-            set -uo pipefail
-            CURRENT_STATE='{}'
-            if [ -n "${STATE:-}" ]; then
-              CURRENT_STATE="$(jq -c '.' <<< "${STATE}")"
-            fi
-            RESULT='[]'
-            while IFS= read -r IMAGE; do
-              ENGINE="$(jq -r '.engine' <<< "${IMAGE}")"
-              TAG="$(jq -r '.tag' <<< "${IMAGE}")"
-              UUID="$(jq -r '.build_uuid' <<< "${IMAGE}")"
-              CURRENT="$(jq -r --arg key "${ENGINE}:${TAG}" '.[$key] // empty' <<< "${CURRENT_STATE}")"
-              if [ "${CURRENT}" != "${UUID}" ]; then
-                RESULT="$(jq -c --argjson image "${IMAGE}" '. + [$image]' <<< "${RESULT}")"
-              fi
-            done < <(jq -c '.[]' <<< "${IMAGES}")
-            {
-              echo "images<<EOF"
-              echo "${RESULT}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+        run: python3 python/changed.py
 
 
   build:
@@ -180,21 +118,16 @@ jobs:
     if: needs.matrix.outputs.images != '[]'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
       - name: Record published jar builds
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           IMAGES: ${{ needs.matrix.outputs.images }}
           STATE: ${{ vars.JAR_BUILD_STATE }}
-        run: |
-            set -euo pipefail
-            CURRENT_STATE='{}'
-            if [ -n "${STATE:-}" ]; then
-              CURRENT_STATE="$(jq -c '.' <<< "${STATE}")"
-            fi
-            while IFS= read -r IMAGE; do
-              ENGINE="$(jq -r '.engine' <<< "${IMAGE}")"
-              TAG="$(jq -r '.tag' <<< "${IMAGE}")"
-              UUID="$(jq -r '.build_uuid' <<< "${IMAGE}")"
-              CURRENT_STATE="$(jq -c --arg key "${ENGINE}:${TAG}" --arg uuid "${UUID}" '. + {($key): $uuid}' <<< "${CURRENT_STATE}")"
-            done < <(jq -c '.[]' <<< "${IMAGES}")
-            gh variable set JAR_BUILD_STATE --repo "${GITHUB_REPOSITORY}" --body "$(jq -c . <<< "${CURRENT_STATE}")"
+        run: python3 python/record_state.py
