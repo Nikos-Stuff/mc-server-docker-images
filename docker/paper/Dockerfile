@@ -8,7 +8,7 @@ RUN chmod +x /usr/local/bin/mcjars.sh \
     && mkdir -p /paper \
     && mcjars.sh paper "${MC_VERSION}" /paper/server.jar
 
-FROM ghcr.io/pelican-eggs/yolks:alpine
+FROM ghcr.io/pelican-eggs/yolks:ubuntu
 
 ARG MC_VERSION
 ARG JAVA_PACKAGE=openjdk21-jre-headless
@@ -17,7 +17,9 @@ ENV MC_VERSION=${MC_VERSION}
 
 USER root
 
-RUN apk add --no-cache "${JAVA_PACKAGE}"
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends "${JAVA_PACKAGE}" \
+    && rm -rf /var/lib/apt/lists/*
 
 # NOTE: the jar is stored at /opt/paper/server.jar NOT /home/container
 # each server's data directory is being mounted over /home/container
