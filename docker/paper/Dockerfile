@@ -1,3 +1,5 @@
+ARG JAVA_PACKAGE=21-jre
+
 FROM alpine:latest AS download
 
 RUN apk add --no-cache bash curl jq ca-certificates
@@ -8,23 +10,16 @@ RUN chmod +x /usr/local/bin/mcjars.sh \
     && mkdir -p /paper \
     && mcjars.sh paper "${MC_VERSION}" /paper/server.jar
 
-FROM ghcr.io/pelican-eggs/yolks:alpine
+FROM eclipse-temurin:${JAVA_PACKAGE}
 
 ARG MC_VERSION
-ARG JAVA_PACKAGE=openjdk21-jre-headless
+ENV MC_VERSION=${MC_VERSION} \
+    USER=container \
+    HOME=/home/container
 
-ENV MC_VERSION=${MC_VERSION}
+RUN useradd -m -d /home/container -s /bin/bash container
 
-USER root
-
-RUN apk add --no-cache "${JAVA_PACKAGE}"
-
-# NOTE: the jar is stored at /opt/paper/server.jar NOT /home/container
-# each server's data directory is being mounted over /home/container
-# at runtime which would otherwise hide anything baked in there. The egg's
-# startup command copies /opt/paper/server.jar into /home/container on start
-COPY --from=download /paper/server.jar /opt/paper/server.jar
-RUN chown -R container:container /opt/paper
+COPY --from=download --chown=container:container /paper/server.jar /opt/paper/server.jar
 
 USER container
 WORKDIR /home/container
