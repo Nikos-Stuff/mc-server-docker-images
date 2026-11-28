@@ -56,4 +56,10 @@ mkdir -p ${OUT_DIR}
 
 curl -fsSL -o "${OUTPUT}" "${DOWNLOAD_URL}"
 
+# Some types (e.g. FORGE) ship a zip holding server.jar plus a
+# libraries/ dir; only server.jar is added here and libraries/ is dropped
+if unzip -l "${OUTPUT}" server.jar >/dev/null 2>&1; then
+  unzip -oq "${OUTPUT}" server.jar -d "${OUT_DIR}"
+fi
+
 echo "Saved ${SERVER_TYPE} ${MC_VERSION} (build ${UUID}) to ${OUTPUT}"
