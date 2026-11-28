@@ -14,7 +14,6 @@ ENGINE_TYPES = {
     "purpur": "PURPUR",
     "fabric": "FABRIC",
     "leafmc": "LEAF",
-    "forge": "FORGE",
 }
 
 
